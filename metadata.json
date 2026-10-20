@@ -1,0 +1,6 @@
+{
+  "name": "GLITCH!",
+  "description": "Videojuego arcade 2D vertical de supervivencia y esquiva surrealista con estética glitch para móvil.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
