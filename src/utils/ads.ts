@@ -1,9 +1,10 @@
-// Ads management utility for libtl SDK tag (show_12089328)
+// Rewarded interstitial implementation for libtl / Monetag SDK (show_12089328)
 
 declare global {
   interface Window {
     show_12089328?: () => Promise<any>;
   }
+  function show_12089328(): Promise<any>;
 }
 
 export interface AdResult {
@@ -22,6 +23,44 @@ export interface AdDiagnostics {
   hostname: string;
   isSandboxedIframe: boolean;
   recommendation: string;
+}
+
+/**
+ * Plantilla oficial del proveedor de anuncios:
+ * 
+ * // Rewarded interstitial
+ * 
+ * show_12089328().then(() => {
+ *     // You need to add your user reward function here, which will be executed after the user watches the ad.
+ *     // For more details, please refer to the detailed instructions.
+ *     alert('You have seen an ad!');
+ * })
+ */
+
+/**
+ * Ejecución directa del snippet de Rewarded Interstitial del proveedor.
+ * Ejecuta la función de recompensa del usuario al completar el anuncio.
+ */
+export function executeRewardedInterstitialSnippet(onUserReward: () => void, onError?: (err: any) => void): void {
+  if (typeof window !== 'undefined' && typeof window.show_12089328 === 'function') {
+    // Rewarded interstitial
+    show_12089328().then(() => {
+      // You need to add your user reward function here, which will be executed after the user watches the ad.
+      // For more details, please refer to the detailed instructions.
+      try {
+        console.log('[Rewarded Interstitial] You have seen an ad! Recompensa entregada.');
+      } catch (e) {
+        // En navegadores o iframes que restrinjan alert(), se registra en consola sin bloquear
+      }
+      onUserReward();
+    }).catch((err: any) => {
+      console.warn('[Rewarded Interstitial Error]', err);
+      if (onError) onError(err);
+    });
+  } else {
+    console.warn('[Rewarded Interstitial] show_12089328 no está disponible en este momento.');
+    if (onError) onError(new Error('SDK_NOT_LOADED'));
+  }
 }
 
 /**
@@ -44,7 +83,7 @@ export function ensureSdkTagInHead(): HTMLScriptElement | null {
   let existing = document.querySelector('script[data-zone="12089328"]') as HTMLScriptElement | null;
   if (!existing) {
     existing = document.createElement('script');
-    existing.src = 'https://libtl.com/sdk.js';
+    existing.src = '//libtl.com/sdk.js';
     existing.setAttribute('data-zone', '12089328');
     existing.setAttribute('data-sdk', 'show_12089328');
     document.head.appendChild(existing);
@@ -124,7 +163,7 @@ export async function requestRewardedAd(): Promise<AdResult> {
   ensureSdkTagInHead();
 
   const isReady = await waitForSdk(2500);
-  if (!isReady) {
+  if (!isReady || !isSdkFunctionDefined()) {
     const diag = getAdDiagnostics();
     console.warn('[Ads SDK Diagnosis]', diag);
     return {
@@ -134,36 +173,47 @@ export async function requestRewardedAd(): Promise<AdResult> {
     };
   }
 
-  try {
-    const callRes = window.show_12089328!();
-    let result: any = callRes;
-    if (callRes && typeof (callRes as Promise<any>).then === 'function') {
-      result = await callRes;
-    }
+  return new Promise<AdResult>((resolve) => {
+    try {
+      // Rewarded interstitial
+      show_12089328().then((result: any) => {
+        // You need to add your user reward function here, which will be executed after the user watches the ad.
+        // For more details, please refer to the detailed instructions.
+        
+        // Validación en caso de que el proveedor devuelva un estado explícito de cierre anticipado:
+        if (
+          result === false ||
+          (result && typeof result === 'object' && (result.status === 'dismissed' || result.status === 'error' || result.rewarded === false))
+        ) {
+          resolve({
+            success: false,
+            reason: 'REJECTED_OR_CANCELLED',
+            details: 'El anuncio fue cerrado antes de finalizar o cancelado.',
+          });
+          return;
+        }
 
-    // Check if the provider returns an explicit payload indicating incomplete or dismissed view
-    if (
-      result === false ||
-      (result && typeof result === 'object' && (result.status === 'dismissed' || result.status === 'error' || result.rewarded === false))
-    ) {
-      return {
+        // Recompensa confirmada al usuario (Núcleo de Sobrecarga o Revivida)
+        resolve({
+          success: true,
+          details: result,
+        });
+      }).catch((error: any) => {
+        console.warn('[Ads SDK] show_12089328 rejected or encountered an error:', error);
+        resolve({
+          success: false,
+          reason: 'REJECTED_OR_CANCELLED',
+          details: error?.message || 'Error durante la reproducción del anuncio.',
+        });
+      });
+    } catch (error: any) {
+      console.warn('[Ads SDK] Error calling show_12089328:', error);
+      resolve({
         success: false,
-        reason: 'REJECTED_OR_CANCELLED',
-        details: 'El anuncio fue cerrado antes de finalizar o cancelado.',
-      };
+        reason: 'UNKNOWN_ERROR',
+        details: error?.message || 'Error inesperado al invocar el anuncio.',
+      });
     }
-
-    return {
-      success: true,
-      details: result,
-    };
-  } catch (error: any) {
-    console.warn('[Ads SDK] show_12089328 rejected or encountered an error:', error);
-    return {
-      success: false,
-      reason: 'REJECTED_OR_CANCELLED',
-      details: error?.message || 'Error durante la reproducción del anuncio.',
-    };
-  }
+  });
 }
 
