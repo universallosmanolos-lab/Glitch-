@@ -34,6 +34,8 @@ export const StoreModal: React.FC<StoreModalProps> = ({ onClose, onUpgradeChange
         return <Bot className="w-5 h-5 text-pink-400" />;
       case 'chaos_control':
         return <Cpu className="w-5 h-5 text-emerald-400" />;
+      case 'turbo_speed':
+        return <Zap className="w-5 h-5 text-emerald-300" />;
       default:
         return <ShoppingBag className="w-5 h-5 text-purple-400" />;
     }
@@ -59,7 +61,7 @@ export const StoreModal: React.FC<StoreModalProps> = ({ onClose, onUpgradeChange
         </div>
 
         {/* Visible Coin Balance */}
-        <div className="flex items-center justify-between bg-black/60 border border-amber-500/40 rounded-2xl p-3.5 my-3 shadow-inner">
+        <div className="flex items-center justify-between bg-black/60 border border-amber-500/40 rounded-2xl p-3.5 my-2.5 shadow-inner">
           <div className="text-xs uppercase tracking-wider text-gray-400 font-bold">
             Tus Monedas
           </div>

@@ -30,10 +30,10 @@ export const HUD: React.FC<HUDProps> = ({
     <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-3 select-none">
       {/* Top Bar Cluster */}
       <div className="flex items-center justify-between w-full z-20">
-        {/* Lives Counter with Jelly Icons */}
+        {/* Lives Counter with Jelly Icons - Exactly 2 Initial Lives */}
         <div className="flex items-center gap-1.5 bg-black/55 backdrop-blur-sm border border-purple-500/30 px-3 py-1.5 rounded-full shadow-lg">
           <span className="text-xs font-bold text-purple-300 mr-1 uppercase tracking-wider">Vidas</span>
-          {[1, 2, 3].map((lifeNum) => {
+          {[1, 2].map((lifeNum) => {
             const hasLife = stats.lives >= lifeNum;
             return (
               <div
@@ -123,11 +123,29 @@ export const HUD: React.FC<HUDProps> = ({
         )}
 
         {stats.speedTimeRemaining > 0 && (
-          <div className="flex items-center gap-1.5 bg-emerald-950/85 border border-emerald-400 text-emerald-200 px-3 py-1 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.5)] animate-pulse">
-            <Zap className="w-3.5 h-3.5 text-emerald-300" />
-            <span className="text-[11px] font-black uppercase tracking-wider">
-              Velocidad: {stats.speedTimeRemaining.toFixed(1)}s
-            </span>
+          <div className="flex items-center gap-2 bg-gradient-to-r from-emerald-950/95 via-teal-950/90 to-cyan-950/95 border-2 border-emerald-400 text-emerald-200 px-3.5 py-1.5 rounded-full shadow-[0_0_20px_rgba(16,185,129,0.75)] animate-pulse">
+            <Zap className="w-4 h-4 text-emerald-300 shrink-0 animate-bounce" />
+            <div className="flex flex-col text-left leading-none">
+              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-300">
+                ⚡ SUPER VELOCIDAD: {stats.speedTimeRemaining.toFixed(1)}s
+              </span>
+              <span className="text-[8px] font-bold text-cyan-200 uppercase tracking-tight mt-0.5">
+                Puntos x2 • Bullet-Time • Imán Turbo
+              </span>
+            </div>
+          </div>
+        )}
+        {stats.overchargeActive && (
+          <div className="flex items-center gap-2 bg-gradient-to-r from-sky-950/95 via-blue-900/90 to-cyan-950/95 border-2 border-sky-400 text-sky-200 px-3.5 py-1.5 rounded-full shadow-[0_0_25px_rgba(56,189,248,0.8)] animate-pulse">
+            <Zap className="w-4 h-4 text-sky-300 shrink-0 fill-sky-300 animate-bounce" />
+            <div className="flex flex-col text-left leading-none">
+              <span className="text-[10px] font-black uppercase tracking-wider text-sky-300">
+                ⚡ SOBRECARGA: {stats.overchargeTimeRemaining.toFixed(1)}s
+              </span>
+              <span className="text-[8px] font-bold text-cyan-200 uppercase tracking-tight mt-0.5">
+                ¡INVULNERABLE! ATRAVIESA OBSTÁCULOS
+              </span>
+            </div>
           </div>
         )}
       </div>
@@ -169,8 +187,18 @@ export const HUD: React.FC<HUDProps> = ({
         )}
       </div>
 
-      {/* Ability Buttons Bar (Dash & Chaos Control) */}
-      <div className="flex items-center justify-center gap-3 pointer-events-auto my-2">
+      {/* Ability Buttons Bar (Dash, Chaos Control & Overcharge Core) */}
+      <div className="flex items-center justify-center gap-2.5 pointer-events-auto my-2 flex-wrap">
+        {stats.hasOverchargeCore && !stats.overchargeActive && (
+          <button
+            onClick={() => engine.activateOvercharge()}
+            className="flex items-center gap-1.5 bg-gradient-to-r from-sky-500/30 via-cyan-500/40 to-blue-500/30 border-2 border-sky-400 text-sky-200 px-4 py-2 rounded-2xl text-xs font-black uppercase tracking-wider active:scale-95 shadow-[0_0_20px_rgba(56,189,248,0.6)] animate-bounce transition-all pointer-events-auto"
+          >
+            <Zap className="w-4 h-4 text-sky-300 fill-sky-300" />
+            <span>⚡ ACTIVAR SOBRECARGA</span>
+          </button>
+        )}
+
         {dashLevel > 0 && (
           <button
             onClick={() => engine.triggerDash()}

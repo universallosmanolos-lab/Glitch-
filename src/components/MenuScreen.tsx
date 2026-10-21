@@ -1,15 +1,19 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Play, Volume2, VolumeX, Trophy, Smartphone, Keyboard, ShieldAlert, Check, Award, ShoppingBag, Coins } from 'lucide-react';
+import { Play, Volume2, VolumeX, Trophy, Smartphone, Keyboard, ShieldAlert, Check, Award, ShoppingBag, Coins, Tv, Heart, Zap } from 'lucide-react';
 import { CharacterId, CHARACTERS } from '../types/game';
 import { missionManager } from '../game/Missions';
 import { MissionsModal } from './MissionsModal';
 import { StoreModal } from './StoreModal';
 import { economy } from '../game/Economy';
+import { requestRewardedAd } from '../utils/ads';
+import { sound } from '../utils/audio';
 
 interface MenuScreenProps {
   highScore: number;
   isMuted: boolean;
   selectedCharacter: CharacterId;
+  hasOverchargeCore?: boolean;
+  onGrantOverchargeCore?: () => void;
   onSelectCharacter: (id: CharacterId) => void;
   onToggleMute: () => void;
   onStartGame: () => void;
@@ -19,6 +23,8 @@ export const MenuScreen: React.FC<MenuScreenProps> = ({
   highScore,
   isMuted,
   selectedCharacter,
+  hasOverchargeCore = false,
+  onGrantOverchargeCore,
   onSelectCharacter,
   onToggleMute,
   onStartGame,
@@ -28,10 +34,40 @@ export const MenuScreen: React.FC<MenuScreenProps> = ({
   const [showStore, setShowStore] = useState<boolean>(false);
   const [profile, setProfile] = useState(missionManager.getProfile());
   const [coins, setCoins] = useState<number>(economy.getCoins());
+  const [isAdLoading, setIsAdLoading] = useState<boolean>(false);
+  const [adFeedback, setAdFeedback] = useState<{ text: string; isError: boolean } | null>(null);
 
   useEffect(() => {
     setCoins(economy.getCoins());
   }, []);
+
+  const handleWatchAdForOvercharge = async () => {
+    if (isAdLoading || hasOverchargeCore) return;
+    setIsAdLoading(true);
+    setAdFeedback(null);
+    sound.userGesture();
+
+    const res = await requestRewardedAd();
+
+    setIsAdLoading(false);
+    if (res.success) {
+      onGrantOverchargeCore?.();
+      setAdFeedback({ text: '¡Núcleo de Sobrecarga obtenido! Tendrás 20s de invulnerabilidad.', isError: false });
+      sound.playPowerUp();
+    } else {
+      if (res.reason === 'SDK_NOT_LOADED') {
+        setAdFeedback({
+          text: 'Proveedor de anuncios no disponible (bloqueador detectado o sin conexión). Puedes jugar sin él.',
+          isError: true,
+        });
+      } else {
+        setAdFeedback({
+          text: 'El anuncio fue cancelado o no se completó. No se otorgó el núcleo.',
+          isError: true,
+        });
+      }
+    }
+  };
 
   useEffect(() => {
     const canvas = previewCanvasRef.current;
@@ -170,6 +206,11 @@ export const MenuScreen: React.FC<MenuScreenProps> = ({
             <Award className="w-4 h-4 text-cyan-400" />
             <span>Misiones</span>
           </button>
+
+          <div className="flex items-center gap-1.5 bg-rose-950/60 border border-rose-500/40 px-3 py-1.5 rounded-full text-rose-300 text-xs font-bold font-mono">
+            <Heart className="w-4 h-4 text-rose-400 fill-rose-400" />
+            <span>2 Vidas</span>
+          </div>
         </div>
 
         <button
@@ -240,9 +281,47 @@ export const MenuScreen: React.FC<MenuScreenProps> = ({
             className="w-[150px] h-[130px]"
           />
         </div>
+        {/* Rewarded Ad Exclusive: Núcleo de Sobrecarga */}
+        <div className="w-full my-2">
+          {hasOverchargeCore ? (
+            <div className="w-full py-2.5 px-3 rounded-2xl bg-sky-950/80 border-2 border-sky-400 text-sky-200 flex items-center justify-center gap-2 text-xs font-black shadow-[0_0_20px_rgba(56,189,248,0.4)] animate-pulse">
+              <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />
+              <span>⚡ NÚCLEO DE SOBRECARGA EQUIPADO (20s Invulnerable)</span>
+            </div>
+          ) : (
+            <button
+              onClick={handleWatchAdForOvercharge}
+              disabled={isAdLoading}
+              className="w-full py-2.5 px-3.5 rounded-2xl bg-gradient-to-r from-sky-950/90 via-blue-900/90 to-purple-950/90 border-2 border-sky-400 hover:border-sky-300 text-sky-200 flex items-center justify-between text-xs font-black uppercase tracking-wider transition-all active:scale-98 shadow-[0_0_20px_rgba(56,189,248,0.35)]"
+            >
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-sky-300 animate-bounce" />
+                <div className="flex flex-col text-left leading-none">
+                  <span className="text-[11px] font-black text-sky-200">Núcleo de Sobrecarga</span>
+                  <span className="text-[9px] text-cyan-300 font-medium normal-case mt-0.5">20s Invulnerable al activarlo</span>
+                </div>
+              </div>
+              <span className="bg-sky-400 text-black text-[10px] font-black px-2.5 py-1 rounded-full uppercase flex items-center gap-1 shrink-0">
+                <Tv className="w-3 h-3 text-black" />
+                {isAdLoading ? 'Cargando...' : 'Ver Anuncio'}
+              </span>
+            </button>
+          )}
+          {adFeedback && (
+            <div
+              className={`text-[11px] font-bold p-1.5 rounded-xl mt-1.5 text-center transition-all ${
+                adFeedback.isError
+                  ? 'bg-rose-950/80 border border-rose-500/60 text-rose-200'
+                  : 'bg-emerald-950/80 border border-emerald-500/60 text-emerald-200'
+              }`}
+            >
+              {adFeedback.text}
+            </div>
+          )}
+        </div>
 
         {/* Action Buttons: TIENDA & JUGAR */}
-        <div className="w-full flex gap-2.5 mt-2">
+        <div className="w-full flex gap-2.5 mt-1">
           <button
             onClick={() => setShowStore(true)}
             className="py-3.5 px-4 rounded-2xl font-black text-sm tracking-wider uppercase text-cyan-300 bg-purple-950/80 hover:bg-purple-900 border-2 border-cyan-500/60 active:scale-95 shadow-[0_0_20px_rgba(0,245,255,0.25)] transition-all flex items-center justify-center gap-2"

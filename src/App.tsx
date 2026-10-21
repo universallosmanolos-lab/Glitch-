@@ -86,6 +86,8 @@ export default function App() {
           highScore={stats.highScore}
           isMuted={isMuted}
           selectedCharacter={selectedCharacter}
+          hasOverchargeCore={engine.hasPendingOverchargeCore || stats.hasOverchargeCore}
+          onGrantOverchargeCore={() => engine.grantOverchargeCore()}
           onSelectCharacter={handleSelectCharacter}
           onToggleMute={handleToggleMute}
           onStartGame={handleStartGame}
@@ -109,6 +111,7 @@ export default function App() {
           stats={stats}
           onRetry={handleRestart}
           onMenu={handleMenu}
+          onRevive={() => engine.reviveGame()}
         />
       )}
     </main>

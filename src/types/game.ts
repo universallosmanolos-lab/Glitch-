@@ -14,7 +14,7 @@ export interface GlitchEvent {
 
 export type PowerUpType = 'shield' | 'speed';
 
-export type CharacterId = 'chispa' | 'blaze' | 'neo' | 'void' | 'radioactivo' | 'modo_fuego';
+export type CharacterId = 'chispa' | 'neo' | 'void' | 'radioactivo' | 'modo_fuego';
 
 export interface CharacterInfo {
   id: CharacterId;
@@ -46,14 +46,6 @@ export const CHARACTERS: CharacterInfo[] = [
     id: 'modo_fuego',
     name: 'Modo Fuego',
     description: 'Aspecto naranja con plasma de fuego.',
-    colorPrimary: '#ff6b00',
-    colorSecondary: '#ff0055',
-    colorCore: '#ffea00',
-  },
-  {
-    id: 'blaze',
-    name: 'Blaze',
-    description: 'Gelatina de plasma y fuego.',
     colorPrimary: '#ff6b00',
     colorSecondary: '#ff0055',
     colorCore: '#ffea00',
@@ -94,6 +86,7 @@ export interface Player {
   invulnerableTime: number; // seconds left of i-frames
   shieldActive: boolean;
   speedBoostActive: boolean;
+  overchargeActive: boolean;
   isHit: boolean;
   hitTimer: number;
   blinkTimer: number;
@@ -173,6 +166,11 @@ export interface GameStats {
   score: number;
   highScore: number;
   lives: number;
+  maxLives: number;
+  revivesRemaining: number;
+  hasOverchargeCore: boolean;
+  overchargeActive: boolean;
+  overchargeTimeRemaining: number;
   timeSurvived: number; // in seconds
   dodgesCount: number;
   glitchesSurvived: number;

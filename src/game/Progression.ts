@@ -89,6 +89,16 @@ const INITIAL_UPGRADES: StoreUpgradeItem[] = [
     maxLevel: 2,
     unlocked: false,
   },
+  {
+    id: 'turbo_speed',
+    name: 'Super Velocidad Turbo',
+    description: 'Aumenta la duración de la Super Velocidad (Bullet-Time, Puntos x2 y Ondas Sónicas).',
+    price: 350,
+    category: 'permanent',
+    level: 0,
+    maxLevel: 3,
+    unlocked: false,
+  },
 ];
 
 const DEFAULT_MISSIONS: MissionItem[] = [

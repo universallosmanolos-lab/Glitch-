@@ -2,6 +2,8 @@ import { Player, CharacterId, CHARACTERS } from '../types/game';
 
 export class ChispaEntity {
   public data: Player;
+  public ghosts: Array<{ x: number; y: number; alpha: number; squashX: number; squashY: number }> = [];
+  private ghostTimer: number = 0;
   private blinkState: number = 0;
   private blinkCountdown: number = 2.5;
 
@@ -18,6 +20,7 @@ export class ChispaEntity {
       invulnerableTime: 0,
       shieldActive: false,
       speedBoostActive: false,
+      overchargeActive: false,
       isHit: false,
       hitTimer: 0,
       blinkTimer: 0,
@@ -39,6 +42,7 @@ export class ChispaEntity {
     this.data.invulnerableTime = 0;
     this.data.shieldActive = false;
     this.data.speedBoostActive = false;
+    this.data.overchargeActive = false;
     this.data.isHit = false;
     this.data.hitTimer = 0;
     this.data.panicLevel = 0;
@@ -48,6 +52,8 @@ export class ChispaEntity {
     if (equippedTrail !== undefined) {
       this.data.equippedTrail = equippedTrail;
     }
+    this.ghosts = [];
+    this.ghostTimer = 0;
   }
 
   public setTargetX(targetX: number, playWidth: number) {
@@ -73,7 +79,8 @@ export class ChispaEntity {
   public update(dt: number, playWidth: number, closestHazardDist: number) {
     const p = this.data;
 
-    const lerpSpeed = p.speedBoostActive ? 26 : 16;
+    // Super Velocidad makes Chispa dart much faster and crisper
+    const lerpSpeed = p.speedBoostActive ? 42 : 18;
     const dx = p.targetX - p.x;
     p.vx = dx * lerpSpeed;
     p.x += p.vx * dt;
@@ -84,15 +91,37 @@ export class ChispaEntity {
 
     p.lookDirection = Math.max(-1, Math.min(1, p.vx / 300));
 
-    p.jigglePhase += dt * (p.speedBoostActive ? 14 : 8);
+    p.jigglePhase += dt * (p.speedBoostActive ? 18 : 8);
     const naturalSquash = Math.sin(p.jigglePhase) * 0.06;
 
     const speedRatio = Math.min(1, Math.abs(p.vx) / 600);
     const targetSquashX = 1 + speedRatio * 0.2 + naturalSquash;
     const targetSquashY = 1 - speedRatio * 0.15 - naturalSquash;
 
-    p.squashX += (targetSquashX - p.squashX) * Math.min(1, dt * 14);
-    p.squashY += (targetSquashY - p.squashY) * Math.min(1, dt * 14);
+    p.squashX += (targetSquashX - p.squashX) * Math.min(1, dt * 16);
+    p.squashY += (targetSquashY - p.squashY) * Math.min(1, dt * 16);
+
+    // After-image ghosts during Super Velocidad
+    if (p.speedBoostActive) {
+      this.ghostTimer += dt;
+      if (this.ghostTimer >= 0.04) {
+        this.ghostTimer = 0;
+        this.ghosts.unshift({
+          x: p.x,
+          y: p.y,
+          alpha: 0.65,
+          squashX: p.squashX,
+          squashY: p.squashY,
+        });
+        if (this.ghosts.length > 6) this.ghosts.pop();
+      }
+    }
+    for (let i = this.ghosts.length - 1; i >= 0; i--) {
+      this.ghosts[i].alpha -= dt * 3.2;
+      if (this.ghosts[i].alpha <= 0) {
+        this.ghosts.splice(i, 1);
+      }
+    }
 
     if (p.isHit) {
       p.hitTimer -= dt;
@@ -125,17 +154,64 @@ export class ChispaEntity {
 
   public render(ctx: CanvasRenderingContext2D) {
     const p = this.data;
+
+    // Render After-Image Speed Ghosts
+    if (this.ghosts.length > 0) {
+      for (const g of this.ghosts) {
+        ctx.save();
+        ctx.translate(g.x, g.y);
+        ctx.scale(g.squashX * 0.95, g.squashY * 0.95);
+        ctx.globalAlpha = Math.max(0, g.alpha * 0.5);
+        ctx.fillStyle = '#00f5ff';
+        ctx.beginPath();
+        ctx.arc(0, 0, p.radius * 0.9, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#10b981';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
     ctx.save();
     ctx.translate(p.x, p.y);
 
+    // Spectacular Super Velocidad Energy Aura & Sonic Shockwaves
     if (p.speedBoostActive) {
       ctx.save();
-      ctx.strokeStyle = '#00ff88';
-      ctx.lineWidth = 3;
-      ctx.setLineDash([4, 4]);
+      const time = performance.now() / 100;
+      
+      // Outer electric pulse
+      ctx.strokeStyle = 'rgba(0, 255, 200, 0.7)';
+      ctx.lineWidth = 3.5;
+      ctx.setLineDash([8, 6]);
       ctx.beginPath();
-      ctx.arc(0, 0, p.radius * 1.6, 0, Math.PI * 2);
+      ctx.arc(0, 0, p.radius * 1.5 + Math.sin(time * 2) * 4, 0, Math.PI * 2);
       ctx.stroke();
+
+      // Inner sonic glow
+      const auraGrad = ctx.createRadialGradient(0, 0, p.radius * 0.5, 0, 0, p.radius * 1.8);
+      auraGrad.addColorStop(0, 'rgba(16, 185, 129, 0.4)');
+      auraGrad.addColorStop(0.7, 'rgba(0, 245, 255, 0.25)');
+      auraGrad.addColorStop(1, 'rgba(0, 245, 255, 0)');
+      ctx.fillStyle = auraGrad;
+      ctx.beginPath();
+      ctx.arc(0, 0, p.radius * 1.8, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Dynamic electric sparks
+      for (let s = 0; s < 4; s++) {
+        const ang = (time * 3 + s * (Math.PI / 2)) % (Math.PI * 2);
+        const dist = p.radius * 1.35;
+        const sx = Math.cos(ang) * dist;
+        const sy = Math.sin(ang) * dist;
+        ctx.strokeStyle = '#fef08a';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx + (Math.random() - 0.5) * 12, sy + (Math.random() - 0.5) * 12);
+        ctx.stroke();
+      }
       ctx.restore();
     }
 
@@ -153,6 +229,35 @@ export class ChispaEntity {
       ctx.beginPath();
       ctx.arc(0, 0, p.radius * 1.35, -shieldAngle, -shieldAngle + Math.PI);
       ctx.stroke();
+      ctx.restore();
+    }
+
+    if (p.overchargeActive) {
+      ctx.save();
+      const time = performance.now() / 120;
+      // Pulsing Overcharge Plasma Aura
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 4;
+      ctx.setLineDash([12, 6]);
+      ctx.beginPath();
+      ctx.arc(0, 0, p.radius * 1.7 + Math.sin(time * 3) * 3, time, time + Math.PI * 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = '#f43f5e';
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([6, 6]);
+      ctx.beginPath();
+      ctx.arc(0, 0, p.radius * 1.5, -time * 1.5, -time * 1.5 + Math.PI * 2);
+      ctx.stroke();
+
+      const overchargeGlow = ctx.createRadialGradient(0, 0, p.radius * 0.8, 0, 0, p.radius * 1.9);
+      overchargeGlow.addColorStop(0, 'rgba(56, 189, 248, 0.45)');
+      overchargeGlow.addColorStop(0.6, 'rgba(244, 63, 94, 0.25)');
+      overchargeGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = overchargeGlow;
+      ctx.beginPath();
+      ctx.arc(0, 0, p.radius * 1.9, 0, Math.PI * 2);
+      ctx.fill();
       ctx.restore();
     }
 

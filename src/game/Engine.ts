@@ -33,10 +33,17 @@ export class GameEngine {
   public particles: ParticleSystem;
   public selectedCharacter: CharacterId = 'chispa';
 
+  public hasPendingOverchargeCore: boolean = false;
+
   public stats: GameStats = {
     score: 0,
     highScore: 0,
-    lives: 3,
+    lives: 2,
+    maxLives: 2,
+    revivesRemaining: 2,
+    hasOverchargeCore: false,
+    overchargeActive: false,
+    overchargeTimeRemaining: 0,
     timeSurvived: 0,
     dodgesCount: 0,
     glitchesSurvived: 0,
@@ -133,6 +140,34 @@ export class GameEngine {
     this.particles.addFloatingText(this.chispa.data.x, this.chispa.data.y - 30, '🌀 ¡CONTROL DEL CAOS!', '#10b981');
   }
 
+  public grantOverchargeCore(): boolean {
+    if (this.hasPendingOverchargeCore || this.stats.hasOverchargeCore) {
+      return false;
+    }
+    this.hasPendingOverchargeCore = true;
+    this.stats.hasOverchargeCore = true;
+    sound.playPowerUp();
+    this.notifyChanges();
+    return true;
+  }
+
+  public activateOvercharge(): boolean {
+    if (this.state !== 'playing' || !this.stats.hasOverchargeCore || this.stats.overchargeActive) {
+      return false;
+    }
+    this.stats.hasOverchargeCore = false;
+    this.stats.overchargeActive = true;
+    this.stats.overchargeTimeRemaining = 20.0;
+    this.chispa.data.overchargeActive = true;
+    this.chispa.data.invulnerableTime = 20.0;
+    sound.playPowerUp();
+    this.screenShake = 12;
+    this.particles.emitPickupSparks(this.chispa.data.x, this.chispa.data.y);
+    this.particles.addFloatingText(this.chispa.data.x, this.chispa.data.y - 45, '⚡ ¡SOBRECARGA ACTIVA (20s)!', '#38bdf8');
+    this.notifyChanges();
+    return true;
+  }
+
   public startGame() {
     sound.userGesture();
     sound.playStart();
@@ -142,7 +177,18 @@ export class GameEngine {
 
     this.state = 'playing';
     this.stats.score = 0;
-    this.stats.lives = 3;
+    // Exactly 2 initial lives per run
+    this.stats.lives = 2;
+    this.stats.maxLives = 2;
+    // Exactly 2 revives available per run
+    this.stats.revivesRemaining = 2;
+
+    // Overcharge core: single use per run, does not accumulate across runs
+    this.stats.hasOverchargeCore = this.hasPendingOverchargeCore;
+    this.hasPendingOverchargeCore = false;
+    this.stats.overchargeActive = false;
+    this.stats.overchargeTimeRemaining = 0;
+
     this.stats.timeSurvived = 0;
     this.stats.dodgesCount = 0;
     this.stats.glitchesSurvived = 0;
@@ -203,6 +249,11 @@ export class GameEngine {
     this.state = 'menu';
     this.glitch.active = false;
     this.glitch.warningTime = 0;
+    this.stats.lives = 2;
+    this.stats.maxLives = 2;
+    this.stats.revivesRemaining = 2;
+    this.stats.overchargeActive = false;
+    this.stats.overchargeTimeRemaining = 0;
     sound.stopBGM();
     this.notifyChanges();
   }
@@ -216,7 +267,25 @@ export class GameEngine {
   }
 
   public nudgeHorizontal(delta: number) {
-    this.chispa.setTargetX(this.chispa.data.targetX + delta, this.playWidth);
+    const mult = this.chispa.data.speedBoostActive ? 1.8 : 1.0;
+    this.chispa.setTargetX(this.chispa.data.targetX + delta * mult, this.playWidth);
+  }
+
+  public reviveGame(): boolean {
+    if (this.state !== 'gameover' || this.stats.revivesRemaining <= 0) {
+      return false;
+    }
+    // Exactly 1 life restored per revive
+    this.stats.revivesRemaining = Math.max(0, this.stats.revivesRemaining - 1);
+    this.stats.lives = 1;
+    // 2 seconds of invulnerability to prevent immediate defeat
+    this.chispa.data.invulnerableTime = 2.0;
+    this.state = 'playing';
+    sound.startBGM();
+    this.particles.emitPickupSparks(this.chispa.data.x, this.chispa.data.y);
+    this.particles.addFloatingText(this.chispa.data.x, this.chispa.data.y - 40, '❤️ ¡REVIVIDO! (1 VIDA)', '#ff007f');
+    this.notifyChanges();
+    return true;
   }
 
   private notifyChanges() {
@@ -247,7 +316,9 @@ export class GameEngine {
     }
 
     this.stats.timeSurvived += safeDt;
-    this.stats.score += safeDt * 10;
+    // Super Velocidad doubles score accumulation (20 pts/sec instead of 10)
+    const scoreRate = this.chispa.data.speedBoostActive ? 20 : 10;
+    this.stats.score += safeDt * scoreRate;
     this.stats.difficultyMultiplier = 1.0 + Math.min(1.2, this.stats.timeSurvived / 100);
 
     if (this.stats.timeSurvived >= 60 && !this.rewardSurvive60Claimed) {
@@ -276,8 +347,19 @@ export class GameEngine {
         this.chispa.data.speedBoostActive = false;
       }
     }
+    if (this.stats.overchargeTimeRemaining > 0) {
+      this.stats.overchargeTimeRemaining = Math.max(0, this.stats.overchargeTimeRemaining - safeDt);
+      this.chispa.data.overchargeActive = true;
+      if (this.stats.overchargeTimeRemaining === 0) {
+        this.stats.overchargeActive = false;
+        this.chispa.data.overchargeActive = false;
+        this.particles.addFloatingText(this.chispa.data.x, this.chispa.data.y - 30, '⚡ SOBRECARGA AGOTADA', '#94a3b8');
+      }
+    }
 
-    this.backgroundScroll = (this.backgroundScroll + 120 * safeDt * this.stats.difficultyMultiplier) % 60;
+    // Background scrolls much faster during Super Velocidad giving high-velocity feeling
+    const scrollSpeed = this.chispa.data.speedBoostActive ? 300 : 120;
+    this.backgroundScroll = (this.backgroundScroll + scrollSpeed * safeDt * this.stats.difficultyMultiplier) % 60;
 
     if (this.screenShake > 0) {
       this.screenShake = Math.max(0, this.screenShake - safeDt * 30);
@@ -285,17 +367,20 @@ export class GameEngine {
 
     let closestDist = 999;
     for (const obs of this.obstacles) {
-      // Coin Magnet Upgrade logic
+      // Coin Magnet Upgrade logic AND Super Velocidad slipstream suction
       const upgrades = progression.getProfile().upgrades;
       const magnetLevel = upgrades['magnet']?.level || 0;
-      if (magnetLevel > 0 && obs.kind === 'coin') {
+      const hasSuperSpeedPull = this.chispa.data.speedBoostActive;
+
+      if ((magnetLevel > 0 || hasSuperSpeedPull) && (obs.kind === 'coin' || (hasSuperSpeedPull && obs.kind === 'spark'))) {
         const dx = this.chispa.data.x - obs.x;
         const dy = this.chispa.data.y - obs.y;
         const d = Math.hypot(dx, dy);
-        const magnetRange = 100 + magnetLevel * 60;
+        const magnetRange = hasSuperSpeedPull ? 220 : 100 + magnetLevel * 60;
         if (d < magnetRange) {
-          obs.vx += (dx / d) * 350 * safeDt;
-          obs.vy += (dy / d) * 350 * safeDt;
+          const pullForce = hasSuperSpeedPull ? 520 : 350;
+          obs.vx += (dx / d) * pullForce * safeDt;
+          obs.vy += (dy / d) * pullForce * safeDt;
         }
       }
 
@@ -313,7 +398,11 @@ export class GameEngine {
     this.updateGlitchCycle(safeDt);
     this.updateSpawners(safeDt);
 
-    const speedMod = this.chaosControlActive ? 0.5 : 1.0;
+    // BULLET-TIME: While in Super Velocidad, obstacles move in slow motion (55% speed)!
+    let speedMod = this.chaosControlActive ? 0.5 : 1.0;
+    if (this.chispa.data.speedBoostActive) {
+      speedMod *= 0.55;
+    }
 
     for (let i = this.obstacles.length - 1; i >= 0; i--) {
       const obs = this.obstacles[i];
@@ -504,13 +593,14 @@ export class GameEngine {
     if (obs.kind === 'powerup_speed') {
       if (dist < hitDistance + 12) {
         obs.markedForDeletion = true;
-        this.stats.score += 150;
-        this.stats.speedTimeRemaining = 6.0;
+        this.stats.score += 200;
+        const turboLevel = progression.getProfile().upgrades['turbo_speed']?.level || 0;
+        this.stats.speedTimeRemaining = 7.0 + turboLevel * 2.0;
         this.chispa.data.speedBoostActive = true;
         progression.addMissionProgress('collect_powerups', 1);
         sound.playPowerUp();
         this.particles.emitPickupSparks(obs.x, obs.y);
-        this.particles.addFloatingText(obs.x, obs.y - 15, '¡SUPER VELOCIDAD!', '#10b981');
+        this.particles.addFloatingText(obs.x, obs.y - 15, '⚡ ¡SUPER VELOCIDAD! (BULLET-TIME + PUNTOS x2)', '#10b981');
       }
       return;
     }
@@ -524,14 +614,38 @@ export class GameEngine {
     ) {
       this.nearMissRegistered.add(obs.id);
       this.stats.dodgesCount += 1;
-      this.stats.score += 50;
+      const dodgeScore = p.speedBoostActive ? 100 : 50;
+      this.stats.score += dodgeScore;
       progression.addMissionProgress('dodges', 1);
       sound.playDodgeBonus();
-      this.particles.addFloatingText(p.x, p.y - 35, '¡CASI! +50', '#ffd600');
+      const dodgeText = p.speedBoostActive ? '⚡ ¡CASI TURBO x2! +100' : '¡CASI! +50';
+      this.particles.addFloatingText(p.x, p.y - 35, dodgeText, p.speedBoostActive ? '#00ffff' : '#ffd600');
     }
 
     if (dist < hitDistance) {
+      // Overcharge Core: 5 seconds invulnerability and pass through obstacles without losing lives
+      if (this.stats.overchargeActive || p.overchargeActive) {
+        obs.markedForDeletion = true;
+        sound.playPowerUp();
+        this.particles.emitPickupSparks(obs.x, obs.y);
+        this.particles.addFloatingText(obs.x, obs.y - 20, '⚡ ¡VAPORIZADO!', '#38bdf8');
+        return;
+      }
+
       if (p.invulnerableTime > 0) {
+        return;
+      }
+
+      // Sonic Deflection Shield: Super Velocidad absorbs one crash safely!
+      if (p.speedBoostActive) {
+        p.speedBoostActive = false;
+        this.stats.speedTimeRemaining = 0;
+        p.invulnerableTime = 1.4;
+        this.screenShake = 12;
+        sound.playPowerUp();
+        this.particles.emitPickupSparks(p.x, p.y);
+        this.particles.addFloatingText(p.x, p.y - 30, '💥 ¡BARRERA SÓNICA! (SALVADO)', '#00ffc8');
+        obs.markedForDeletion = true;
         return;
       }
 
@@ -703,6 +817,21 @@ export class GameEngine {
     rightGlow.addColorStop(1, 'rgba(255, 0, 128, 0)');
     ctx.fillStyle = rightGlow;
     ctx.fillRect(this.playWidth - 16, 0, 16, this.playHeight);
+
+    // Dynamic hyperspeed warp lines during Super Velocidad
+    if (this.chispa.data.speedBoostActive) {
+      ctx.strokeStyle = 'rgba(0, 255, 200, 0.4)';
+      ctx.lineWidth = 2;
+      const time = performance.now() / 30;
+      for (let w = 0; w < 10; w++) {
+        const lineX = ((w * 44 + 22) % (this.playWidth - 20)) + 10;
+        const lineY = ((time * 24 + w * 90) % (this.playHeight + 120)) - 60;
+        ctx.beginPath();
+        ctx.moveTo(lineX, lineY);
+        ctx.lineTo(lineX, lineY + 65);
+        ctx.stroke();
+      }
+    }
 
     ctx.restore();
   }
