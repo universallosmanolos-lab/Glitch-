@@ -66,7 +66,7 @@ export class EconomyManager {
 
       const savedSkin = localStorage.getItem('glitch_equipped_skin');
       if (savedSkin) {
-        this.equippedSkin = savedSkin;
+        this.equippedSkin = savedSkin === 'neo' ? 'radioactivo' : savedSkin;
       }
 
       const savedTrail = localStorage.getItem('glitch_equipped_trail');

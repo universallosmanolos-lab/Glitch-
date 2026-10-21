@@ -171,6 +171,9 @@ export class ProgressionManager {
           parsed.lastResetDate = today;
           parsed.missions = DEFAULT_MISSIONS.map((m) => ({ ...m, progress: 0, completed: false, claimed: false }));
         }
+        if (parsed.equippedSkin === 'neo') {
+          parsed.equippedSkin = 'radioactivo';
+        }
         return parsed;
       }
     } catch {

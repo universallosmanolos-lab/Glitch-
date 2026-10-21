@@ -89,6 +89,7 @@ export class GameEngine {
   constructor() {
     const skin = economy.getEquippedSkin() as CharacterId;
     const trail = economy.getEquippedTrail();
+    this.selectedCharacter = skin;
     this.chispa = new ChispaEntity(this.playWidth, this.playHeight, skin, trail);
     this.particles = new ParticleSystem();
 

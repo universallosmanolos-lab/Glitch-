@@ -14,7 +14,7 @@ export interface GlitchEvent {
 
 export type PowerUpType = 'shield' | 'speed';
 
-export type CharacterId = 'chispa' | 'neo' | 'void' | 'radioactivo' | 'modo_fuego';
+export type CharacterId = 'chispa' | 'radioactivo' | 'modo_fuego' | 'void';
 
 export interface CharacterInfo {
   id: CharacterId;
@@ -49,14 +49,6 @@ export const CHARACTERS: CharacterInfo[] = [
     colorPrimary: '#ff6b00',
     colorSecondary: '#ff0055',
     colorCore: '#ffea00',
-  },
-  {
-    id: 'neo',
-    name: 'Neo',
-    description: 'Gelatina ácida verde neón.',
-    colorPrimary: '#10b981',
-    colorSecondary: '#065f46',
-    colorCore: '#a7f3d0',
   },
   {
     id: 'void',
